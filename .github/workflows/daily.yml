@@ -1,0 +1,29 @@
+name: daily-update
+on:
+  schedule:
+    - cron: '30 8 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      days:
+        description: '回補的平日天數（第一次想先試線可填 5）'
+        default: '150'
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python update_data.py --days ${{ github.event.inputs.days || '150' }}
+      - run: python build_site.py
+        continue-on-error: true
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email actions@github.com
+          git add data docs
+          git diff --cached --quiet || git commit -m "daily update $(date -u +%F)"
+          git push
