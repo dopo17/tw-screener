@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>台股關鍵點篩選器 v1</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#eceff3;--cd:#fff;--tx:#14202b;--mu:#667383;--bd:#d9dfe6;--ok:#1d4ed8;--bad:#b45309;--up:#d4302a;--dn:#13885a;--wn:#fff4dc}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1319;--cd:#171d26;--tx:#e6eaf0;--mu:#8995a5;--bd:#273140;--ok:#7aa5ff;--bad:#e5a54f;--up:#ff6f66;--dn:#4cc38a;--wn:#2d2410}}
+:root[data-theme="dark"]{--bg:#0e1319;--cd:#171d26;--tx:#e6eaf0;--mu:#8995a5;--bd:#273140;--ok:#7aa5ff;--bad:#e5a54f;--up:#ff6f66;--dn:#4cc38a;--wn:#2d2410}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.55 -apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif}
+main{max-width:720px;margin:0 auto;padding:16px 14px 40px}
+h1{font-size:20px;margin:4px 0 2px}h1 small{font-size:12px;color:var(--mu);font-weight:400;margin-left:6px}
+.mu,small{color:var(--mu)}.sub{font-size:13px;margin:0 0 14px}
+.bx{background:var(--cd);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.gate{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}.gate b{font-size:22px}
+.ban{margin-top:8px;padding:8px 10px;border-radius:6px;font-size:14px;background:var(--wn)}
+.ban.y{background:transparent;border:1px solid var(--ok);color:var(--ok)}
+.set{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+label{font-size:12px;color:var(--mu);display:block}
+input,select{width:100%;box-sizing:border-box;font:inherit;padding:6px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+button{font:inherit;border:1px solid var(--bd);background:var(--cd);color:var(--tx);border-radius:6px;padding:6px 12px;cursor:pointer}
+.tabs{display:flex;gap:6px;margin:16px 0 10px}.tabs button[aria-selected=true]{background:var(--tx);color:var(--bg);border-color:var(--tx)}
+.cd{background:var(--cd);border:1px solid var(--bd);border-radius:10px;margin-bottom:10px;overflow:hidden}
+summary{padding:11px 14px;cursor:pointer;list-style:none}summary::-webkit-details-marker{display:none}
+.r1{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}.px{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600}
+.r2{font-size:13px;margin-top:3px}
+.cd>*:not(summary){margin-left:14px;margin-right:14px}
+svg{display:block;width:calc(100% - 28px);height:auto}
+.k{stroke:var(--ok);stroke-dasharray:4 3}.s{stroke:var(--bad);stroke-dasharray:2 3}.l{fill:none;stroke:var(--tx);stroke-width:1.5}
+ul{list-style:none;padding:0;margin-top:6px;margin-bottom:6px}li{padding:4px 0;border-top:1px solid var(--bd);font-size:14px}
+li small{display:block;margin-left:20px}li.p::first-letter{color:var(--ok)}li.f{color:var(--bad)}
+em{font-style:normal;font-size:12px;background:var(--wn);padding:1px 6px;border-radius:4px}
+p{margin-top:6px;margin-bottom:10px;font-size:14px}
+footer{font-size:12px;color:var(--mu);margin-top:18px}
+:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
+</style></head><body><main>
+<h1>台股關鍵點篩選器<small>v1</small></h1>
+<p class="sub mu" id="src"></p>
+<div class="bx" id="mk"></div>
+<div class="bx"><div class="set">
+<div><label for="cap">總資金（元）</label><input id="cap" type="number" value="1000000"></div>
+<div><label for="loss">單筆最大可接受損失（元）</label><input id="loss" type="number" value="10000"></div>
+<div><label for="lb">整理區回看天數</label><input id="lb" type="number" value="60"></div>
+<div><label for="vr">量比下限（倍）</label><input id="vr" type="number" step="0.1" value="1.5"></div></div>
+<div class="row"><div style="flex:1;min-width:140px"><label for="sc">大盤示範情境</label><select id="sc"><option value="1">多頭日</option><option value="0">空頭日</option></select></div>
+<div style="flex:2;min-width:180px"><label for="fl">匯入 CSV（date,code,name,industry,open,high,low,close,volume）</label><input id="fl" type="file" accept=".csv"></div>
+<button id="rs" style="align-self:flex-end">還原預設資料</button></div></div>
+<div class="tabs" role="tablist"><button id="tp" role="tab" aria-selected="true"></button><button id="tx" role="tab" aria-selected="false"></button></div>
+<div id="ls"></div>
+<footer>資料來自證交所與櫃買中心公開資料，未還原除權息；示範模式的資料為模擬數據。本工具只依你的交易守則做規則篩選，關鍵點級別、族群判斷與進場理由仍須自己確認，不構成投資建議。</footer>
+</main><script>
+function rng(s){return()=>(s=(s*1664525+1013904223)>>>0)/4294967296}
+const sma=(a,n,e=a.length)=>a.slice(e-n,e).reduce((x,y)=>x+y,0)/n;
+function build(m,r,code,name,ind){
+ const N=130,c=[];let p=30+r()*200,lv=0;
+ for(let i=0;i<N-1;i++){let d=(r()-.5)*.022;
+  if(m==='down')d-=.004;else if(i<55)d+=.007;else if(m==='up')d+=.0045;else{if(i===55)lv=p;d+=(lv-p)/lv*.05}
+  p*=1+d;c.push(p)}
+ const o=[],h=[],l=[],v=[],b=1e3*(.5+r()*3);
+ c.forEach((x,i)=>{const y=i?c[i-1]*(1+(r()-.5)*.008):x;o.push(y);h.push(Math.max(x,y)*(1+r()*.01));l.push(Math.min(x,y)*(1-r()*.01));v.push(b*(.7+r()*.6))});
+ const hh=Math.max(...h.slice(-60)),pv=c[N-2];let last,vm=1,hi;
+ if(m==='bo'){last=hh*(1.006+r()*.012);vm=1.8+r()}
+ else if(m==='lowv'){last=hh*1.02;vm=.9}
+ else if(m==='fake'){last=hh*.99;vm=1.9;hi=hh*1.02}
+ else{last=pv*(1+(r()-.5)*.01);vm=.8+r()*.4}
+ o.push(pv);c.push(last);h.push(hi||Math.max(last,pv)*1.004);l.push(Math.min(last,pv)*.996);v.push(b*vm);
+ return{code,name,ind,o,h,l,c,v}}
+function gen(){const r=rng(20261002),T=[['bo','半導體','半導體','AI伺服器','航運'],['fake','半導體','生技'],['lowv','AI伺服器','電子零組件'],['up','半導體','AI伺服器','AI伺服器','電子零組件'],['down','生技','生技','航運','電子零組件'],['range','半導體','AI伺服器','航運','生技','電子零組件','航運','半導體','生技']],o=[];let k=0;
+ T.forEach(([m,...I])=>I.forEach(g=>{k++;o.push(build(m,r,'D'+String(k).padStart(2,'0'),'示範'+String.fromCharCode(64+k),g))}));return o}
+function idx(bull){const r=rng(7);let p=17000;return Array.from({length:130},(_,i)=>p*=1+(r()-.5)*.01+(bull?.0025:(i<90?.0025:-.004)))}
+function mkt(c){const l=c.at(-1),a=sma(c,20),b=sma(c,60);return{l,a,b,st:l>a&&a>b?'多頭':l<a&&a<b?'空頭':'盤整'}}
+function groups(D){const g={};D.forEach(s=>{const x=g[s.ind]??={n:0,up:0};x.n++;if(s.c.at(-1)>sma(s.c,20))x.up++});return g}
+const f=v=>v.toFixed(2);
+function ana(s,F,G){
+ const n=s.c.length,L=Math.min(F.lb,n-2),key=Math.max(...s.h.slice(n-1-L,n-1)),base=key-Math.min(...s.l.slice(n-1-L,n-1)),
+ cl=s.c[n-1],m60=sma(s.c,60),vr=s.v[n-1]/sma(s.v,20,n-1),stop=key*.985,tgt=key+base,rps=cl-stop,rr=rps>0?(tgt-cl)/rps:0,g=G[s.ind];
+ const R=[['族群沒有明顯逆風',g.up/g.n>=.5,`${s.ind}：${g.up}/${g.n} 檔站上20日線`],
+ ['個股主要趨勢未破壞',cl>m60,`收盤 ${f(cl)}／60日線 ${f(m60)}`],
+ [`收盤站上 ${L} 日高點`,cl>key,`關鍵點 ${f(key)}${s.h[n-1]>key&&cl<=key?'（盤中曾過，收盤未站穩）':''}`],
+ ['量價配合',vr>=F.vr&&cl>s.c[n-2],`量比 ${vr.toFixed(2)} 倍（需 ≥ ${F.vr}）`],
+ ['風險報酬比 ≥ 1:2',cl>key&&rr>=2,`目標 ${f(tgt)}／失效點 ${f(stop)} → 1:${rr.toFixed(1)}`]];
+ const a=F.loss/rps,b=F.cap*.1/cl,sh=rps>0?Math.max(0,Math.floor(Math.min(a,b))):0;
+ return{s,R,ok:R.every(x=>x[1]),key,stop,tgt,rr,cl,vr,sh,lim:a<=b?'最大損失':'資金 10%',chg:(cl/s.c[n-2]-1)*100,pass:R.filter(x=>x[1]).length}}
+function parse(t){const m={};t.trim().split(/\r?\n/).slice(1).forEach(x=>{const[d,k,nm,ind,o,h,l,c,v]=x.split(',');(m[k]??=[]).push({d,nm,ind,o:+o,h:+h,l:+l,c:+c,v:+v})});
+ let ix=null;const S=[];for(const k in m){const a=m[k].sort((x,y)=>x.d<y.d?-1:1),q=z=>a.map(e=>e[z]);
+  if(k==='TAIEX')ix=q('c');else if(a.length>=70)S.push({code:k,name:a[0].nm,ind:a[0].ind,o:q('o'),h:q('h'),l:q('l'),c:q('c'),v:q('v')})}
+ if(!S.length)throw 0;
+ if(!ix){const n=Math.min(...S.map(s=>s.c.length));ix=Array.from({length:n},(_,i)=>S.reduce((t,s)=>t+s.c[s.c.length-n+i]/s.c[s.c.length-n],0)/S.length)}
+ return[S,ix]}
+//UI
+const $=i=>document.getElementById(i),esc=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const EMB=null;let D=EMB?EMB.s:gen(),X=EMB?EMB.x:null,tab='p',own=!!EMB;
+const cfg=()=>({cap:+$('cap').value||1e6,loss:+$('loss').value||1e4,vr:+$('vr').value||1.5,lb:+$('lb').value||60});
+function spark(a){const c=a.s.c.slice(-80),lo=Math.min(...c,a.stop),hi=Math.max(...c,a.key),y=v=>68-(v-lo)/(hi-lo)*62;
+ return`<svg viewBox="0 0 300 70" role="img" aria-label="近80日收盤與關鍵點"><line class="k" x1="0" x2="300" y1="${y(a.key)}" y2="${y(a.key)}"/><line class="s" x1="0" x2="300" y1="${y(a.stop)}" y2="${y(a.stop)}"/><polyline class="l" points="${c.map((v,i)=>(i/(c.length-1)*300).toFixed(1)+','+y(v).toFixed(1)).join(' ')}"/></svg><p class="mu" style="margin:0;font-size:12px">虛線藍＝關鍵點　點線橘＝失效點</p>`}
+function card(a,g){const s=a.s,up=a.chg>=0,bad=a.R.filter(x=>!x[1]);
+ return`<details class="cd"><summary><div class="r1"><b>${esc(s.name)}</b><span class="mu">${esc(s.code)}　${esc(s.ind)}</span>${a.ok&&!g?'<em>僅供觀察</em>':''}<span class="px" style="color:var(--${up?'up':'dn'})">${f(a.cl)} ${up?'▲':'▼'}${Math.abs(a.chg).toFixed(1)}%</span></div>${a.ok?`<div class="r2">進場 ${f(a.cl)}　失效 ${f(a.stop)}　目標 ${f(a.tgt)}　<b>1:${a.rr.toFixed(1)}</b></div>`:`<div class="r2" style="color:var(--bad)">未過：${bad.map(x=>x[0]).join('、')}</div>`}</summary>${spark(a)}<ul>${a.R.map(x=>`<li class="${x[1]?'p':'f'}">${x[1]?'✓':'✗'} ${x[0]}<small>${esc(x[2])}</small></li>`).join('')}</ul>${a.ok?`<p>試單部位：<b>${a.sh.toLocaleString()} 股</b>（約 ${(a.sh/1000).toFixed(1)} 張，受${a.lim}限制），不使用融資。</p><p class="mu">仍需人工確認：關鍵點級別 A/B/C、族群方向、一句話說明為什麼是現在。</p>`:''}</details>`}
+function render(){
+ const F=cfg(),M=mkt(X||idx($('sc').value==='1')),G=groups(D),A=D.map(s=>ana(s,F,G)),P=A.filter(a=>a.ok).sort((a,b)=>b.rr-a.rr),N=A.filter(a=>!a.ok).sort((a,b)=>b.pass-a.pass),g=M.st==='多頭';
+ $('src').textContent=own?(EMB&&D===EMB.s?`資料：自動更新，截至 ${EMB.d}，共 ${D.length} 檔`:'資料：匯入的 CSV'):'資料：模擬示範資料（130 個交易日、24 檔）';
+ $('mk').innerHTML=`<div class="gate"><b>大盤${M.st}</b><span class="mu">收盤 ${M.l.toFixed(0)}／20日 ${M.a.toFixed(0)}／60日 ${M.b.toFixed(0)}</span></div><div class="ban ${g?'y':''}">${g?'大盤多頭，可依守則逐檔評估。':'大盤不是多頭：依守則今天不交易，以下名單僅供觀察。'}</div>`;
+ $('tp').textContent=`通過 ${P.length}`;$('tx').textContent=`未通過 ${N.length}`;
+ const L=tab==='p'?P:N;$('ls').innerHTML=L.length?L.map(a=>card(a,g)).join(''):'<p class="mu">今天沒有股票通過全部自動條件。沒有確認，就沒有交易。</p>'}
+function setTab(t){tab=t;$('tp').setAttribute('aria-selected',t==='p');$('tx').setAttribute('aria-selected',t==='x');render()}
+$('tp').onclick=()=>setTab('p');$('tx').onclick=()=>setTab('x');
+['cap','loss','lb','vr','sc'].forEach(i=>$(i).oninput=render);
+$('rs').onclick=()=>{D=EMB?EMB.s:gen();X=EMB?EMB.x:null;own=!!EMB;$('fl').value='';render()};
+$('fl').onchange=async e=>{try{[D,X]=parse(await e.target.files[0].text());own=true}catch(x){alert('CSV 格式不符，或有效股票少於 70 個交易日。')}render()};
+if(EMB)$('sc').parentElement.style.display='none';
+render();
+</script></body></html>
