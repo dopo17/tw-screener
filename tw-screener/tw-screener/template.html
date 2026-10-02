@@ -42,7 +42,9 @@ footer{font-size:12px;color:var(--mu);margin-top:18px}
 <div><label for="cap">總資金（元）</label><input id="cap" type="number" value="1000000"></div>
 <div><label for="loss">單筆最大可接受損失（元）</label><input id="loss" type="number" value="10000"></div>
 <div><label for="lb">整理區回看天數</label><input id="lb" type="number" value="60"></div>
-<div><label for="vr">量比下限（倍）</label><input id="vr" type="number" step="0.1" value="1.5"></div></div>
+<div><label for="vr">量比下限（倍）</label><input id="vr" type="number" step="0.1" value="1.5"></div>
+<div><label for="nb">失效點取幾根 K 棒（含突破日）</label><input id="nb" type="number" value="3"></div>
+<div><label for="mr">失效點距離上限（%）</label><input id="mr" type="number" step="0.5" value="10"></div></div>
 <div class="row"><div style="flex:1;min-width:140px"><label for="sc">大盤示範情境</label><select id="sc"><option value="1">多頭日</option><option value="0">空頭日</option></select></div>
 <div style="flex:2;min-width:180px"><label for="fl">匯入 CSV（date,code,name,industry,open,high,low,close,volume）</label><input id="fl" type="file" accept=".csv"></div>
 <button id="rs" style="align-self:flex-end">還原預設資料</button></div></div>
@@ -55,8 +57,9 @@ const sma=(a,n,e=a.length)=>a.slice(e-n,e).reduce((x,y)=>x+y,0)/n;
 function build(m,r,code,name,ind){
  const N=130,c=[];let p=30+r()*200,lv=0;
  for(let i=0;i<N-1;i++){let d=(r()-.5)*.022;
-  if(m==='down')d-=.004;else if(i<55)d+=.007;else if(m==='up')d+=.0045;else{if(i===55)lv=p;d+=(lv-p)/lv*.05}
+  if(m==='down')d-=.004;else if(i<55)d+=.007;else if(m==='up')d+=.0045;else{if(i===55)lv=p;d+=(lv-p)/lv*.02}
   p*=1+d;c.push(p)}
+ if(m==='bo'){const q=Math.max(...c.slice(-60));[.985,.99,.993].forEach((k,i)=>c[N-4+i]=q*k)}
  const o=[],h=[],l=[],v=[],b=1e3*(.5+r()*3);
  c.forEach((x,i)=>{const y=i?c[i-1]*(1+(r()-.5)*.008):x;o.push(y);h.push(Math.max(x,y)*(1+r()*.01));l.push(Math.min(x,y)*(1-r()*.01));v.push(b*(.7+r()*.6))});
  const hh=Math.max(...h.slice(-60)),pv=c[N-2];let last,vm=1,hi;
@@ -74,14 +77,15 @@ function groups(D){const g={};D.forEach(s=>{const x=g[s.ind]??={n:0,up:0};x.n++;
 const f=v=>v.toFixed(2);
 function ana(s,F,G){
  const n=s.c.length,L=Math.min(F.lb,n-2),key=Math.max(...s.h.slice(n-1-L,n-1)),base=key-Math.min(...s.l.slice(n-1-L,n-1)),
- cl=s.c[n-1],m60=sma(s.c,60),vr=s.v[n-1]/sma(s.v,20,n-1),stop=key*.985,tgt=key+base,rps=cl-stop,rr=rps>0?(tgt-cl)/rps:0,g=G[s.ind];
+ cl=s.c[n-1],m60=sma(s.c,60),vr=s.v[n-1]/sma(s.v,20,n-1),nb=Math.max(1,Math.min(F.nb,n-1)),stop=Math.min(...Array.from({length:nb},(_,i)=>Math.min(s.o[n-1-i],s.c[n-1-i]))),tgt=key+base,rps=cl-stop,rr=rps>0?(tgt-cl)/rps:0,g=G[s.ind];
  const R=[['族群沒有明顯逆風',g.up/g.n>=.5,`${s.ind}：${g.up}/${g.n} 檔站上20日線`],
  ['個股主要趨勢未破壞',cl>m60,`收盤 ${f(cl)}／60日線 ${f(m60)}`],
  [`收盤站上 ${L} 日高點`,cl>key,`關鍵點 ${f(key)}${s.h[n-1]>key&&cl<=key?'（盤中曾過，收盤未站穩）':''}`],
  ['量價配合',vr>=F.vr&&cl>s.c[n-2],`量比 ${vr.toFixed(2)} 倍（需 ≥ ${F.vr}）`],
+ [`失效點在 ${F.mr}% 內（否則不交易）`,rps>0&&rps/cl<=F.mr/100,`失效點 ${f(stop)}（最近 ${nb} 根 K 棒實體低點，含突破日），風險 ${(rps/cl*100).toFixed(1)}%`],
  ['風險報酬比 ≥ 1:2',cl>key&&rr>=2,`目標 ${f(tgt)}／失效點 ${f(stop)} → 1:${rr.toFixed(1)}`]];
  const a=F.loss/rps,b=F.cap*.1/cl,sh=rps>0?Math.max(0,Math.floor(Math.min(a,b))):0;
- return{s,R,ok:R.every(x=>x[1]),key,stop,tgt,rr,cl,vr,sh,lim:a<=b?'最大損失':'資金 10%',chg:(cl/s.c[n-2]-1)*100,pass:R.filter(x=>x[1]).length}}
+ return{s,R,ok:R.every(x=>x[1]),rps,key,stop,tgt,rr,cl,vr,sh,lim:a<=b?'最大損失':'資金 10%',chg:(cl/s.c[n-2]-1)*100,pass:R.filter(x=>x[1]).length}}
 function parse(t){const m={};t.trim().split(/\r?\n/).slice(1).forEach(x=>{const[d,k,nm,ind,o,h,l,c,v]=x.split(',');(m[k]??=[]).push({d,nm,ind,o:+o,h:+h,l:+l,c:+c,v:+v})});
  let ix=null;const S=[];for(const k in m){const a=m[k].sort((x,y)=>x.d<y.d?-1:1),q=z=>a.map(e=>e[z]);
   if(k==='TAIEX')ix=q('c');else if(a.length>=70)S.push({code:k,name:a[0].nm,ind:a[0].ind,o:q('o'),h:q('h'),l:q('l'),c:q('c'),v:q('v')})}
@@ -91,11 +95,11 @@ function parse(t){const m={};t.trim().split(/\r?\n/).slice(1).forEach(x=>{const[
 //UI
 const $=i=>document.getElementById(i),esc=t=>String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 const EMB=null;let D=EMB?EMB.s:gen(),X=EMB?EMB.x:null,tab='p',own=!!EMB;
-const cfg=()=>({cap:+$('cap').value||1e6,loss:+$('loss').value||1e4,vr:+$('vr').value||1.5,lb:+$('lb').value||60});
+const cfg=()=>({cap:+$('cap').value||1e6,loss:+$('loss').value||1e4,vr:+$('vr').value||1.5,lb:+$('lb').value||60,nb:+$('nb').value||3,mr:+$('mr').value||10});
 function spark(a){const c=a.s.c.slice(-80),lo=Math.min(...c,a.stop),hi=Math.max(...c,a.key),y=v=>68-(v-lo)/(hi-lo)*62;
  return`<svg viewBox="0 0 300 70" role="img" aria-label="近80日收盤與關鍵點"><line class="k" x1="0" x2="300" y1="${y(a.key)}" y2="${y(a.key)}"/><line class="s" x1="0" x2="300" y1="${y(a.stop)}" y2="${y(a.stop)}"/><polyline class="l" points="${c.map((v,i)=>(i/(c.length-1)*300).toFixed(1)+','+y(v).toFixed(1)).join(' ')}"/></svg><p class="mu" style="margin:0;font-size:12px">虛線藍＝關鍵點　點線橘＝失效點</p>`}
 function card(a,g){const s=a.s,up=a.chg>=0,bad=a.R.filter(x=>!x[1]);
- return`<details class="cd"><summary><div class="r1"><b>${esc(s.name)}</b><span class="mu">${esc(s.code)}　${esc(s.ind)}</span>${a.ok&&!g?'<em>僅供觀察</em>':''}<span class="px" style="color:var(--${up?'up':'dn'})">${f(a.cl)} ${up?'▲':'▼'}${Math.abs(a.chg).toFixed(1)}%</span></div>${a.ok?`<div class="r2">進場 ${f(a.cl)}　失效 ${f(a.stop)}　目標 ${f(a.tgt)}　<b>1:${a.rr.toFixed(1)}</b></div>`:`<div class="r2" style="color:var(--bad)">未過：${bad.map(x=>x[0]).join('、')}</div>`}</summary>${spark(a)}<ul>${a.R.map(x=>`<li class="${x[1]?'p':'f'}">${x[1]?'✓':'✗'} ${x[0]}<small>${esc(x[2])}</small></li>`).join('')}</ul>${a.ok?`<p>試單部位：<b>${a.sh.toLocaleString()} 股</b>（約 ${(a.sh/1000).toFixed(1)} 張，受${a.lim}限制），不使用融資。</p><p class="mu">仍需人工確認：關鍵點級別 A/B/C、族群方向、一句話說明為什麼是現在。</p>`:''}</details>`}
+ return`<details class="cd"><summary><div class="r1"><b>${esc(s.name)}</b><span class="mu">${esc(s.code)}　${esc(s.ind)}</span>${a.ok&&!g?'<em>僅供觀察</em>':''}<span class="px" style="color:var(--${up?'up':'dn'})">${f(a.cl)} ${up?'▲':'▼'}${Math.abs(a.chg).toFixed(1)}%</span></div>${a.ok?`<div class="r2">進場 ${f(a.cl)}　失效 ${f(a.stop)}（-${(a.rps/a.cl*100).toFixed(1)}%）　目標 ${f(a.tgt)}　<b>1:${a.rr.toFixed(1)}</b></div>`:`<div class="r2" style="color:var(--bad)">未過：${bad.map(x=>x[0]).join('、')}</div>`}</summary>${spark(a)}<ul>${a.R.map(x=>`<li class="${x[1]?'p':'f'}">${x[1]?'✓':'✗'} ${x[0]}<small>${esc(x[2])}</small></li>`).join('')}</ul>${a.ok?`<p>試單部位：<b>${a.sh.toLocaleString()} 股</b>（約 ${(a.sh/1000).toFixed(1)} 張，受${a.lim}限制），不使用融資。</p><p class="mu">仍需人工確認：關鍵點級別 A/B/C、族群方向、一句話說明為什麼是現在。</p>`:''}</details>`}
 function render(){
  const F=cfg(),M=mkt(X||idx($('sc').value==='1')),G=groups(D),A=D.map(s=>ana(s,F,G)),P=A.filter(a=>a.ok).sort((a,b)=>b.rr-a.rr),N=A.filter(a=>!a.ok).sort((a,b)=>b.pass-a.pass),g=M.st==='多頭';
  $('src').textContent=own?(EMB&&D===EMB.s?`資料：自動更新，截至 ${EMB.d}，共 ${D.length} 檔`:'資料：匯入的 CSV'):'資料：模擬示範資料（130 個交易日、24 檔）';
@@ -104,7 +108,7 @@ function render(){
  const L=tab==='p'?P:N;$('ls').innerHTML=L.length?L.map(a=>card(a,g)).join(''):'<p class="mu">今天沒有股票通過全部自動條件。沒有確認，就沒有交易。</p>'}
 function setTab(t){tab=t;$('tp').setAttribute('aria-selected',t==='p');$('tx').setAttribute('aria-selected',t==='x');render()}
 $('tp').onclick=()=>setTab('p');$('tx').onclick=()=>setTab('x');
-['cap','loss','lb','vr','sc'].forEach(i=>$(i).oninput=render);
+['cap','loss','lb','vr','nb','mr','sc'].forEach(i=>$(i).oninput=render);
 $('rs').onclick=()=>{D=EMB?EMB.s:gen();X=EMB?EMB.x:null;own=!!EMB;$('fl').value='';render()};
 $('fl').onchange=async e=>{try{[D,X]=parse(await e.target.files[0].text());own=true}catch(x){alert('CSV 格式不符，或有效股票少於 70 個交易日。')}render()};
 if(EMB)$('sc').parentElement.style.display='none';
